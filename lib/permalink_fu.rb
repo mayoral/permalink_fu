@@ -1,7 +1,8 @@
 begin
-  require 'iconv'
-rescue Object
-  puts "no iconv, you might want to look into it."
+  require "active_support"
+rescue LoadError
+  require "rubygems"
+  require "active_support"
 end
 
 require 'digest/sha1'
@@ -12,17 +13,28 @@ module PermalinkFu
 
     # This method does the actual permalink escaping.
     def escape(string)
-      result = ((translation_to && translation_from) ? Iconv.iconv(translation_to, translation_from, string) : string).to_s
-      result.gsub!(/[^\x00-\x7F]+/, '') # Remove anything non-ASCII entirely (e.g. diacritics).
+      if defined?(ActiveSupport::Multibyte::Chars)
+        result = string.mb_chars.normalize(:kd)
+      else
+        begin
+          result = ActiveSupport::Multibyte::Handlers::UTF8Handler.normalize(string.to_s, :kd)
+        rescue ActiveSupport::Multibyte::Handlers::EncodingError
+          require 'iconv'
+          result = ((translation_to && translation_from) ? Iconv.iconv(translation_to, translation_from, string) : string).to_s
+          result.gsub!(/[^\x00-\x7F]+/, '') # Remove anything non-ASCII entirely (e.g. diacritics).
+        end
+      end
+
       result.gsub!(/[^\w_ \-]+/i,   '') # Remove unwanted chars.
       result.gsub!(/[ \-]+/i,      '-') # No more than one of the separator in a row.
       result.gsub!(/^\-|\-$/i,      '') # Remove leading/trailing separator.
+      result.strip!
       result.downcase!
       result.size.zero? ? random_permalink(string) : result
     rescue
       random_permalink(string)
     end
-    
+
     def random_permalink(seed = nil)
       Digest::SHA1.hexdigest("#{seed}#{Time.now.to_s.split(//).sort_by {rand}}")
     end
