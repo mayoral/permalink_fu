@@ -25,9 +25,9 @@ module PermalinkFu
         end
       end
 
-      result.gsub!(/[^\w_ \-]+/i,   '') # Remove unwanted chars.
-      result.gsub!(/[ \-]+/i,      '-') # No more than one of the separator in a row.
-      result.gsub!(/^\-|\-$/i,      '') # Remove leading/trailing separator.
+      result.gsub!(/[^\w -]+/n, '')  # Remove unwanted chars.
+      result.gsub!(/[ \-]+/i,   '-') # No more than one of the separator in a row.
+      result.gsub!(/^\-|\-$/i,  '')  # Remove leading/trailing separator.
       result.strip!
       result.downcase!
       result.size.zero? ? random_permalink(string) : result
