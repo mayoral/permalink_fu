@@ -7,6 +7,8 @@ namespace :permalinks do
     model = model_name.constantize
     field = model.permalink_field
 
+    model.update_all("#{field} = ''")
+
     model.find_each do |record|
       puts "#{model} #{record.id}"
       record.send("#{field}=", nil)

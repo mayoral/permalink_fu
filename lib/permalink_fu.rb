@@ -13,18 +13,7 @@ module PermalinkFu
 
     # This method does the actual permalink escaping.
     def escape(string)
-      if defined?(ActiveSupport::Multibyte::Chars)
-        result = string.mb_chars.normalize(:kd)
-      else
-        begin
-          result = ActiveSupport::Multibyte::Handlers::UTF8Handler.normalize(string.to_s, :kd)
-        rescue ActiveSupport::Multibyte::Handlers::EncodingError
-          require 'iconv'
-          result = ((translation_to && translation_from) ? Iconv.iconv(translation_to, translation_from, string) : string).to_s
-          result.gsub!(/[^\x00-\x7F]+/, '') # Remove anything non-ASCII entirely (e.g. diacritics).
-        end
-      end
-
+      result = string.mb_chars.normalize(:kd)
       result.gsub!(/[^\w -]+/n, '')  # Remove unwanted chars.
       result.gsub!(/[ \-]+/i,   '-') # No more than one of the separator in a row.
       result.gsub!(/^\-|\-$/i,  '')  # Remove leading/trailing separator.
@@ -136,8 +125,12 @@ module PermalinkFu
     end
 
     def create_unique_permalink
-      limit, base = create_common_permalink
-      return if limit.nil? # nil if the permalink has not changed or :if/:unless fail
+      return unless should_create_permalink?
+      if send(self.class.permalink_field).to_s.empty?
+        send("#{self.class.permalink_field}=", create_permalink_for(self.class.permalink_attributes))
+      end
+      limit   = self.class.columns_hash[self.class.permalink_field].limit
+      base    = send("#{self.class.permalink_field}=", send(self.class.permalink_field)[0..limit - 1])
       counter = 1
       # oh how i wish i could use a hash for conditions
       conditions = ["#{self.class.permalink_field} = ?", base]
@@ -146,15 +139,8 @@ module PermalinkFu
         conditions       << id
       end
       if self.class.permalink_options[:scope]
-        [self.class.permalink_options[:scope]].flatten.each do |scope|
-          value = send(scope)
-          if value
-            conditions.first << " and #{scope} = ?"
-            conditions       << send(scope)
-          else
-            conditions.first << " and #{scope} IS NULL"
-          end
-        end
+        conditions.first << " and #{self.class.permalink_options[:scope]} = ?"
+        conditions       << send(self.class.permalink_options[:scope])
       end
       while self.class.exists?(conditions)
         suffix = "-#{counter += 1}"
@@ -199,9 +185,4 @@ module PermalinkFu
       end
     end
   end
-end
-
-if Object.const_defined?(:Iconv)
-  PermalinkFu.translation_to   = 'ascii//translit//IGNORE'
-  PermalinkFu.translation_from = 'utf-8'
 end
